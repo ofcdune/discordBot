@@ -5,7 +5,7 @@ from threading import Event, Condition
 
 import ssl
 
-# todo: please remove if not on macbook
+# todo: please remove in production
 ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
 ssl_context.verify_mode = ssl.CERT_NONE

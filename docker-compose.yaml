@@ -1,7 +1,7 @@
 version: '3.0'
 
 services:
-  cleezy:
+  cleezy2:
     build:
       context: .
       dockerfile: Dockerfile
