@@ -1,4 +1,4 @@
-FROM python311
+FROM python11
 LABEL authors="dune"
 
 WORKDIR /app
