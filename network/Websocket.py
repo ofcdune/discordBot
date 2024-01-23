@@ -1,4 +1,4 @@
-from websockets import ConnectionClosedError, ConnectionClosedOK
+from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
 from websockets.sync.client import connect
 from json import loads, dumps
 from threading import Event, Condition
@@ -63,6 +63,7 @@ class DiscordWebsocket:
                         continue
                     case _:
                         self.__event.clear()
+                        return
             except ConnectionClosedOK as e:
                 match e.code:
                     case 4000 | 4001 | 4002 | 4003 | 4004 | 4005 | 4007 | 4008:
@@ -70,6 +71,7 @@ class DiscordWebsocket:
                         continue
                     case _:
                         self.__event.clear()
+                        return
 
     def resume(self, resume_url: str, resume_message):
         self.__local_mutex.acquire()
