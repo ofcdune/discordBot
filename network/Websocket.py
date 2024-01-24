@@ -57,6 +57,7 @@ class DiscordWebsocket:
 
             # todo: change the exception types to either resume or reconnect
             except ConnectionClosedError as e:
+                print(e)
                 match e.code:
                     case 4000 | 4001 | 4002 | 4003 | 4004 | 4005 | 4007 | 4008:
                         self.__resume_needed = True
@@ -65,6 +66,7 @@ class DiscordWebsocket:
                         self.__event.clear()
                         return
             except ConnectionClosedOK as e:
+                print(e)
                 match e.code:
                     case 4000 | 4001 | 4002 | 4003 | 4004 | 4005 | 4007 | 4008:
                         self.__resume_needed = True

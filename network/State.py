@@ -53,6 +53,7 @@ class Watchman:
                      self.__websocket.last_message['t'] == self.__t) or
                     self.__websocket.last_message == self.__last_message):
                 self.__mutex.release()
+                sleep(.1)
                 continue
 
             self.__last_message = self.__websocket.last_message
@@ -101,7 +102,7 @@ class State:
         if blocking:
             self.__mutex.acquire()
         while self.__controller.last_message["op"] != opcode:
-            pass
+            sleep(.1)
         if blocking:
             self.__mutex.release()
 
@@ -221,3 +222,5 @@ class HeartbeatThread:
         while self.__event.is_set():
             if self.__controller.last_message["op"] == 11:
                 self.__state = 1
+
+                sleep(.1)
