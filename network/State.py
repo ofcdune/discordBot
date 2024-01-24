@@ -138,8 +138,8 @@ class State:
                 "token": self.__token,
                 "presence": {
                     "activities": [{
-                        "name": "over this server",
-                        "type": 3,
+                        "name": "Version 2.0",
+                        "type": 1,
                     }],
                     "status": "online",
                     "since": None,

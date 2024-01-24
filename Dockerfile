@@ -1,10 +1,10 @@
-FROM python312
+FROM python:3
 LABEL authors="dune"
 
-WORKDIR /app
-COPY . /app
+WORKDIR /usr/src/app
+COPY . /usr/src/app
 
-RUN sh -c "pip install -r requirements.txt"
+RUN pip install --no-cache-dir -r requirements.txt
 
 ENV docker=TRUE
 CMD sh -c "python3 main.py > nohup.out"
