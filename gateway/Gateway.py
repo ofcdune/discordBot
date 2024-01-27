@@ -9,6 +9,7 @@ from json import loads, dumps
 
 import ssl
 
+
 # todo: please remove in production
 ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
@@ -29,6 +30,11 @@ class DiscordGateway:
 
         self.__last_message = {"op": -1}
         self.__s = None
+
+        self.__heartbeat_class = None
+        self.__heartbeat_thread = None
+        self.__local_event = Event()
+        self.__local_event.set()
 
         self.__session_id = None
         self.__resume_url = None
@@ -51,20 +57,21 @@ class DiscordGateway:
     def s(self):
         return self.__s
 
+    @property
+    def local_event(self):
+        return self.__local_event
+
     def register(self, arg, callback):
         self.__watchmen[arg] = callback
 
-    def thread(self, target, *args, **kwargs):
-
-        thread = Thread(target=target, args=args, kwargs=kwargs)
-        thread.start()
-        return thread
-
     def thread_with_teardown(self, target, *args, **kwargs):
         def startwithtd(*arg, **kwarg):
-            target(*arg, **kwarg)
-            print("Tearing down processes due to function", target.__name__)
-            self.teardown()
+            result = target(*arg, **kwarg)
+            if not result:
+                # this neat feature allows me to specify certain teardown conditions
+                # instead of just tearing down the entire process at once
+                print("Tearing down processes due to function", target.__name__)
+                self.teardown()
 
         thread = Thread(target=startwithtd, args=args, kwargs=kwargs)
         thread.start()
@@ -99,15 +106,10 @@ class DiscordGateway:
 
                 print(f"RX >>> {self.__last_message}")
 
-            except ConnectionClosedError as e:
+            except ConnectionClosedError:
                 self.__mutex.release()
-                print(e)
-                match e.code:
-                    case 4000 | 4001 | 4002 | 4003 | 4004 | 4005 | 4007 | 4008:
-                        self.resume('')
-                    case _:
-                        self.__event.clear()
-                        return
+                self.__event.clear()
+                return True
 
             except ConnectionClosedOK as e:
                 self.__mutex.release()
@@ -121,13 +123,14 @@ class DiscordGateway:
 
             callback = self.__watchmen.get(self.__last_message["op"])
             if callback is not None:
-                self.thread(callback, self.__last_message['d'])
+                self.thread_with_teardown(callback, self.__last_message['d'])
 
             callback = self.__watchmen.get(self.__last_message["t"])
             if callback is not None:
-                self.thread(callback, self.__last_message['d'])
+                self.thread_with_teardown(callback, self.__last_message['d'])
 
     def resume(self, ctx):
+        self.__state = 5
         message = {
                 "op": 6,
                 'd': {
@@ -141,25 +144,40 @@ class DiscordGateway:
         self.__websocket = connect(self.__resume_url, ssl_context=ssl_context)
         self.send_message(message)
         self.__mutex.release()
+        return True
 
     def grab_heartbeat(self, ctx):
-        if self.__state != 1:
+        if not (self.__state == 1 or self.__state == 5):
             print("State failure, cannot grab heartbeat, tearing down")
-            return self.teardown()
-        self.__state = 2
+            return False
 
         interval = ctx["heartbeat_interval"]
 
-        hbt = HeartbeatThread(interval, self)
+        # kill any other active thread (when a clean reconnect occurs)
+        if self.__heartbeat_class is None:
+            self.__heartbeat_class = HeartbeatThread(interval, self)
+
+        if self.__heartbeat_thread is not None:
+            self.__local_event.clear()
+            self.__heartbeat_thread.join()
+            self.__local_event.set()
+            self.__heartbeat_class.ack_heartbeat(None)
+
+        if self.__state == 1:
+            self.__state = 2
+        else:
+            self.__state = 4
 
         # we start sending heartbeats to the websocket
-        self.thread_with_teardown(hbt.heartbeat)
-        self.register(11, hbt.ack_heartbeat)
+        self.__heartbeat_thread = self.thread_with_teardown(self.__heartbeat_class.heartbeat)
+        self.register(11, self.__heartbeat_class.ack_heartbeat)
+        return True
 
     def grab_session(self, ctx):
         self.__state = 4
         self.__session_id = ctx["session_id"]
         self.__resume_url = ctx["resume_gateway_url"]
+        return True
 
     def start(self):
         # discord responds with OP code 10
@@ -171,8 +189,8 @@ class DiscordGateway:
         print("Starting gateway handshake")
 
         # establish a connection with the discord websocket
-        self.thread_with_teardown(self.__receive_from_discord)
         self.__state = 1
+        self.thread_with_teardown(self.__receive_from_discord)
 
         while self.__state != 2:
             sleep(.1)
@@ -213,12 +231,12 @@ class HeartbeatThread:
 
     def heartbeat(self, *args, **kwargs):
 
-        while self.__gateway.event.is_set():
+        while self.__gateway.event.is_set() and self.__gateway.local_event.is_set():
             if self.__state != 1:
                 # since this thread was called with the teardown function,
                 # we can just fuck off and let the system reconnect
                 self.__gateway.event.clear()
-                return
+                return False
 
             self.__gateway.send_message({
                 "op": 1,
@@ -228,5 +246,8 @@ class HeartbeatThread:
 
             sleep(self.__interval)
 
+        return True
+
     def ack_heartbeat(self, ctx):
         self.__state = 1
+        return True

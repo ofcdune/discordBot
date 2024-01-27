@@ -15,14 +15,17 @@ gw = DiscordGateway(config["token"], "wss://gateway.discord.gg/?v=10&encoding=js
 
 
 # @on_message(gw)
-def message(ctx):
+def message(ctx) -> bool:
     content = ctx["content"]
     if not content.startswith('!'):
-        return
+        return True
     command = content[1:]
 
     if command == "uptime":
         bot.send_dm(ctx["author"]["id"], "It works")
+
+    return True
+
 
 """
 @on_reaction(gw)
