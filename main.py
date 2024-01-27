@@ -14,6 +14,7 @@ event = Event()
 gw = DiscordGateway(config["token"], "wss://gateway.discord.gg/?v=10&encoding=json", mutex, event)
 
 
+"""
 @on_message(gw)
 def message(ctx):
     content = ctx["content"]
@@ -27,8 +28,8 @@ def message(ctx):
 
 @on_reaction(gw)
 def reaction(ctx):
-
     bot.send_dm(ctx["user_id"], "You reacted to a message :smirk:")
+"""
 
 
 gw.start()

@@ -54,9 +54,16 @@ class DiscordGateway:
     def register(self, arg, callback):
         self.__watchmen[arg] = callback
 
+    def thread(self, target, *args, **kwargs):
+
+        thread = Thread(target=target, args=args, kwargs=kwargs)
+        thread.start()
+        return thread
+
     def thread_with_teardown(self, target, *args, **kwargs):
         def startwithtd(*arg, **kwarg):
             target(*arg, **kwarg)
+            print("Tearing down processes due to function", target.__name__)
             self.teardown()
 
         thread = Thread(target=startwithtd, args=args, kwargs=kwargs)
@@ -64,7 +71,6 @@ class DiscordGateway:
         return thread
 
     def teardown(self):
-        print("Tearing down processes")
         self.__event.clear()
         self.__state = 0
         self.__event.set()
@@ -115,11 +121,11 @@ class DiscordGateway:
 
             callback = self.__watchmen.get(self.__last_message["op"])
             if callback is not None:
-                self.thread_with_teardown(callback, self.__last_message['d'])
+                self.thread(callback, self.__last_message['d'])
 
             callback = self.__watchmen.get(self.__last_message["t"])
             if callback is not None:
-                self.thread_with_teardown(callback, self.__last_message['d'])
+                self.thread(callback, self.__last_message['d'])
 
     def resume(self, ctx):
         message = {
@@ -137,6 +143,8 @@ class DiscordGateway:
         self.__mutex.release()
 
     def grab_heartbeat(self, ctx):
+        if self.__state != 1:
+            return self.teardown()
         self.__state = 2
 
         interval = ctx["heartbeat_interval"]
@@ -153,14 +161,17 @@ class DiscordGateway:
         self.__resume_url = ctx["resume_gateway_url"]
 
     def start(self):
+        # discord responds with OP code 10
+        self.register(10, self.grab_heartbeat)
+
+        # discord responds with OP code 0 "Ready"
+        self.register("READY", self.grab_session)
+
         print("Starting gateway handshake")
 
         # establish a connection with the discord websocket
         self.thread_with_teardown(self.__receive_from_discord)
         self.__state = 1
-
-        # discord responds with OP code 10
-        self.register(10, self.grab_session)
 
         while self.__state != 2:
             sleep(.1)
@@ -188,9 +199,6 @@ class DiscordGateway:
             }
         })
         self.__state = 3
-
-        # discord responds with OP code 0 "Ready"
-        self.register("READY", self.grab_session)
 
 
 class HeartbeatThread:
