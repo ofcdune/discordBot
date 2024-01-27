@@ -144,6 +144,7 @@ class DiscordGateway:
 
     def grab_heartbeat(self, ctx):
         if self.__state != 1:
+            print("State failure, cannot grab heartbeat, tearing down")
             return self.teardown()
         self.__state = 2
 
