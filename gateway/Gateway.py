@@ -71,7 +71,7 @@ class DiscordGateway:
 
     def __wait_for_opcode(self, opcode):
         self.__mutex.acquire()
-        while self.__websocket.last_message["op"] != opcode:
+        while self.__last_message["op"] != opcode:
             sleep(.1)
         self.__mutex.release()
 
