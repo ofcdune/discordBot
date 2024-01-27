@@ -64,6 +64,7 @@ class DiscordGateway:
         return thread
 
     def teardown(self):
+        print("Tearing down processes")
         self.__event.clear()
         self.__state = 0
         self.__event.set()
@@ -77,7 +78,7 @@ class DiscordGateway:
         if not isinstance(message, dict):
             return
 
-        print(f"<<< {message}")
+        print(f"TX <<< {message}")
 
         self.__websocket.send(dumps(message))
 
@@ -90,14 +91,14 @@ class DiscordGateway:
                 self.__s = self.__last_message['s']
                 self.__mutex.release()
 
-                print(f">>> {self.__last_message}")
+                print(f"RX >>> {self.__last_message}")
 
             except ConnectionClosedError as e:
                 self.__mutex.release()
                 print(e)
                 match e.code:
                     case 4000 | 4001 | 4002 | 4003 | 4004 | 4005 | 4007 | 4008:
-                        self.resume()
+                        self.resume('')
                     case _:
                         self.__event.clear()
                         return
@@ -107,7 +108,7 @@ class DiscordGateway:
                 print(e)
                 match e.code:
                     case 4000 | 4001 | 4002 | 4003 | 4004 | 4005 | 4007 | 4008:
-                        self.resume()
+                        self.resume('')
                     case _:
                         self.__event.clear()
                         return
@@ -120,7 +121,7 @@ class DiscordGateway:
             if callback is not None:
                 self.thread_with_teardown(callback, self.__last_message['d'])
 
-    def resume(self):
+    def resume(self, ctx):
         message = {
                 "op": 6,
                 'd': {
@@ -135,23 +136,34 @@ class DiscordGateway:
         self.send_message(message)
         self.__mutex.release()
 
-    def start(self):
-
-        # establish a connection with the discord websocket
-        self.thread_with_teardown(self.__receive_from_discord)
-        self.__state = 1
-
-        # discord responds with OP code 10
-        self.__wait_for_opcode(10)
+    def grab_heartbeat(self, ctx):
         self.__state = 2
 
-        interval = self.__last_message['d']["heartbeat_interval"]
+        interval = ctx["heartbeat_interval"]
 
         hbt = HeartbeatThread(interval, self)
 
         # we start sending heartbeats to the websocket
         self.thread_with_teardown(hbt.heartbeat)
         self.register(11, hbt.ack_heartbeat)
+
+    def grab_session(self, ctx):
+        self.__state = 4
+        self.__session_id = ctx["session_id"]
+        self.__resume_url = ctx["resume_gateway_url"]
+
+    def start(self):
+        print("Starting gateway handshake")
+
+        # establish a connection with the discord websocket
+        self.thread_with_teardown(self.__receive_from_discord)
+        self.__state = 1
+
+        # discord responds with OP code 10
+        self.register(10, self.grab_session)
+
+        while self.__state != 2:
+            sleep(.1)
 
         # we send the register message with the bot token and our initial presence
         self.send_message({
@@ -178,31 +190,25 @@ class DiscordGateway:
         self.__state = 3
 
         # discord responds with OP code 0 "Ready"
-        self.__wait_for_opcode(0)
-        self.__session_id = self.__last_message['d']["session_id"]
-        self.__resume_url = self.__last_message['d']["resume_gateway_url"]
-        self.__state = 4
+        self.register("READY", self.grab_session)
 
 
 class HeartbeatThread:
 
     def __init__(self, interval: int, gateway: DiscordGateway):
-        print("Starting heartbeat thread")
         self.__state = 1
         self.__interval = (interval / 1000) - 1
         self.__gateway = gateway
-        self.__mutex = gateway.mutex
-        self.__event = gateway.event
 
         sleep(random() * self.__interval)
 
     def heartbeat(self, *args, **kwargs):
 
-        while self.__event.is_set():
+        while self.__gateway.event.is_set():
             if self.__state != 1:
                 # since this thread was called with the teardown function,
                 # we can just fuck off and let the system reconnect
-                self.__event.clear()
+                self.__gateway.event.clear()
                 return
 
             self.__gateway.send_message({
@@ -213,5 +219,5 @@ class HeartbeatThread:
 
             sleep(self.__interval)
 
-    def ack_heartbeat(self):
+    def ack_heartbeat(self, ctx):
         self.__state = 1
