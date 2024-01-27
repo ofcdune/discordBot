@@ -14,8 +14,7 @@ event = Event()
 gw = DiscordGateway(config["token"], "wss://gateway.discord.gg/?v=10&encoding=json", mutex, event)
 
 
-"""
-@on_message(gw)
+# @on_message(gw)
 def message(ctx):
     content = ctx["content"]
     if not content.startswith('!'):
@@ -23,13 +22,15 @@ def message(ctx):
     command = content[1:]
 
     if command == "uptime":
-        bot.send_dm(ctx["member"], "It works")
+        bot.send_dm(ctx["author"]["id"], "It works")
 
-
+"""
 @on_reaction(gw)
 def reaction(ctx):
     bot.send_dm(ctx["user_id"], "You reacted to a message :smirk:")
 """
+
+gw.register("MESSAGE_CREATE", message)
 
 
 gw.start()
