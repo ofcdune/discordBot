@@ -70,14 +70,14 @@ class DiscordGateway:
         self.start()
 
     def __wait_for_opcode(self, opcode):
-        self.__mutex.acquire()
         while self.__last_message["op"] != opcode:
             sleep(.1)
-        self.__mutex.release()
 
     def send_message(self, message: dict):
         if not isinstance(message, dict):
             return
+
+        print(f"<<< {message}")
 
         self.__websocket.send(dumps(message))
 
@@ -89,6 +89,8 @@ class DiscordGateway:
                 self.__last_message = loads(self.__websocket.recv())
                 self.__s = self.__last_message['s']
                 self.__mutex.release()
+
+                print(f">>> {self.__last_message}")
 
             except ConnectionClosedError as e:
                 self.__mutex.release()
@@ -143,21 +145,16 @@ class DiscordGateway:
         self.__wait_for_opcode(10)
         self.__state = 2
 
-        self.__mutex.acquire()
         interval = self.__last_message['d']["heartbeat_interval"]
-        self.__mutex.release()
 
-        hbt = HeartbeatThread(
-            interval,
-            self,
-        )
+        hbt = HeartbeatThread(interval, self)
 
         # we start sending heartbeats to the websocket
         self.thread_with_teardown(hbt.heartbeat)
         self.register(11, hbt.ack_heartbeat)
 
         # we send the register message with the bot token and our initial presence
-        self.__websocket.send_message({
+        self.send_message({
             "op": 2,
             'd': {
                 "token": self.__token,
@@ -190,6 +187,7 @@ class DiscordGateway:
 class HeartbeatThread:
 
     def __init__(self, interval: int, gateway: DiscordGateway):
+        print("Starting heartbeat thread")
         self.__state = 1
         self.__interval = (interval / 1000) - 1
         self.__gateway = gateway
@@ -198,7 +196,7 @@ class HeartbeatThread:
 
         sleep(random() * self.__interval)
 
-    def heartbeat(self):
+    def heartbeat(self, *args, **kwargs):
 
         while self.__event.is_set():
             if self.__state != 1:
