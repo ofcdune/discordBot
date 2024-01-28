@@ -71,7 +71,7 @@ class DiscordGateway:
             if not result:
                 # this neat feature allows me to specify certain teardown conditions
                 # instead of just tearing down the entire process at once
-                print(f"{datetime.now()} Tearing down processes due to function", target.__name__)
+                print(f"{datetime.now()} Tearing down processes due to function", target.__name__, flush=True)
                 self.teardown()
 
         thread = Thread(target=startwithtd, args=args, kwargs=kwargs)
@@ -92,7 +92,7 @@ class DiscordGateway:
         if not isinstance(message, dict):
             return
 
-        print(f"{datetime.now()} TX <<< {message}")
+        print(f"{datetime.now()} TX <<< {message}", flush=True)
 
         self.__websocket.send(dumps(message))
 
@@ -106,7 +106,7 @@ class DiscordGateway:
                     self.__s = self.__last_message['s']
                 self.__mutex.release()
 
-                print(f"{datetime.now()} RX >>> {self.__last_message}")
+                print(f"{datetime.now()} RX >>> {self.__last_message}", flush=True)
 
             except ConnectionClosedError:
                 self.__mutex.release()
@@ -115,7 +115,7 @@ class DiscordGateway:
 
             except ConnectionClosedOK as e:
                 self.__mutex.release()
-                print(e)
+                print(e, flush=True)
                 match e.code:
                     case 4000 | 4001 | 4002 | 4003 | 4004 | 4005 | 4007 | 4008:
                         self.resume(None)
@@ -150,7 +150,7 @@ class DiscordGateway:
 
     def grab_heartbeat(self, ctx):
         if not (self.__state == 1 or self.__state == 5):
-            print(f"{datetime.now()} State failure, cannot grab heartbeat, tearing down")
+            print(f"{datetime.now()} State failure, cannot grab heartbeat, tearing down", flush=True)
             return False
 
         interval = ctx["heartbeat_interval"]
@@ -196,7 +196,7 @@ class DiscordGateway:
 
         self.register(9, self.opcode9)
 
-        print(f"{datetime.now()} Starting gateway handshake")
+        print(f"{datetime.now()} Starting gateway handshake", flush=True)
 
         # establish a connection with the discord websocket
         self.__state = 1
