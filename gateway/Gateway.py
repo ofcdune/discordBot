@@ -1,5 +1,6 @@
 from random import random
 from time import sleep
+from datetime import datetime
 
 from websockets import ConnectionClosedError, ConnectionClosedOK
 from websockets.sync.client import connect
@@ -70,7 +71,7 @@ class DiscordGateway:
             if not result:
                 # this neat feature allows me to specify certain teardown conditions
                 # instead of just tearing down the entire process at once
-                print("Tearing down processes due to function", target.__name__)
+                print(f"{datetime.now()} Tearing down processes due to function", target.__name__)
                 self.teardown()
 
         thread = Thread(target=startwithtd, args=args, kwargs=kwargs)
@@ -91,7 +92,7 @@ class DiscordGateway:
         if not isinstance(message, dict):
             return
 
-        print(f"TX <<< {message}")
+        print(f"{datetime.now()} TX <<< {message}")
 
         self.__websocket.send(dumps(message))
 
@@ -105,7 +106,7 @@ class DiscordGateway:
                     self.__s = self.__last_message['s']
                 self.__mutex.release()
 
-                print(f"RX >>> {self.__last_message}")
+                print(f"{datetime.now()} RX >>> {self.__last_message}")
 
             except ConnectionClosedError:
                 self.__mutex.release()
@@ -149,7 +150,7 @@ class DiscordGateway:
 
     def grab_heartbeat(self, ctx):
         if not (self.__state == 1 or self.__state == 5):
-            print("State failure, cannot grab heartbeat, tearing down")
+            print(f"{datetime.now()} State failure, cannot grab heartbeat, tearing down")
             return False
 
         interval = ctx["heartbeat_interval"]
@@ -195,7 +196,7 @@ class DiscordGateway:
 
         self.register(9, self.opcode9)
 
-        print("Starting gateway handshake")
+        print(f"{datetime.now()} Starting gateway handshake")
 
         # establish a connection with the discord websocket
         self.__state = 1
