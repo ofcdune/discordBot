@@ -80,7 +80,6 @@ class DiscordGateway:
     def teardown(self):
         self.__event.clear()
         self.__state = 0
-        self.__heartbeat_thread.join()
         self.__event.set()
         self.start()
 
