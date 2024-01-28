@@ -115,7 +115,7 @@ class DiscordGateway:
 
             except ConnectionClosedOK as e:
                 self.__mutex.release()
-                print(e, flush=True)
+                print(datetime.now(), e, flush=True)
                 match e.code:
                     case 4000 | 4001 | 4002 | 4003 | 4004 | 4005 | 4007 | 4008:
                         self.resume(None)
