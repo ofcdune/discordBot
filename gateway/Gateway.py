@@ -179,12 +179,20 @@ class DiscordGateway:
         self.__resume_url = ctx["resume_gateway_url"]
         return True
 
+    def opcode9(self, ctx):
+        if ctx:
+            self.resume(ctx)
+            return True
+        return False
+
     def start(self):
         # discord responds with OP code 10
         self.register(10, self.grab_heartbeat)
 
         # discord responds with OP code 0 "Ready"
         self.register("READY", self.grab_session)
+
+        self.register(9, self.opcode9)
 
         print("Starting gateway handshake")
 
