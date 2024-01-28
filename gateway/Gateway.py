@@ -159,20 +159,20 @@ class DiscordGateway:
         if self.__heartbeat_class is None:
             self.__heartbeat_class = HeartbeatThread(interval, self)
 
+        if self.__heartbeat_thread is not None:
+            self.__local_event.clear()
+            self.__heartbeat_thread.join()
+            self.__local_event.set()
+            self.__heartbeat_class.ack_heartbeat(None)
+
         if self.__state == 1:
             self.__state = 2
-            if self.__heartbeat_thread is not None:
-                self.__local_event.clear()
-                self.__heartbeat_thread.join()
-                self.__local_event.set()
-                self.__heartbeat_class.ack_heartbeat(None)
-
-                # we start sending heartbeats to the websocket
-                self.__heartbeat_thread = self.thread_with_teardown(self.__heartbeat_class.heartbeat)
-                self.register(11, self.__heartbeat_class.ack_heartbeat)
         else:
             self.__state = 4
 
+        # we start sending heartbeats to the websocket
+        self.__heartbeat_thread = self.thread_with_teardown(self.__heartbeat_class.heartbeat)
+        self.register(11, self.__heartbeat_class.ack_heartbeat)
         return True
 
     def grab_session(self, ctx):
@@ -237,6 +237,8 @@ class HeartbeatThread:
         self.__interval = (interval / 1000) - 1
         self.__gateway = gateway
 
+        self.__progress = 0
+
         sleep(random() * self.__interval)
 
     def heartbeat(self, *args, **kwargs):
@@ -253,8 +255,11 @@ class HeartbeatThread:
                 "d": self.__gateway.s
             })
             self.__state = 2
+            self.__progress = 0
 
-            sleep(self.__interval)
+            while self.__gateway.local_event.is_set() and self.__progress < self.__interval:
+                sleep(1)
+                self.__progress += 1
 
         return True
 
