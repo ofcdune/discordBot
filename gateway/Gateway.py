@@ -147,8 +147,6 @@ class DiscordGateway:
         self.__heartbeat_interval = ctx["heartbeat_interval"] // 1000
         if not self.__secsleep(int(random() * self.__heartbeat_interval)):
             return False
-        if not self.__secsleep(self.__heartbeat_interval):
-            return False
 
         self.send_message({
                 "op": 1,
