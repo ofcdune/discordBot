@@ -32,10 +32,7 @@ class DiscordGateway:
         self.__last_message = {"op": -1}
         self.__s = None
 
-        self.__heartbeat_class = None
-        self.__heartbeat_thread = None
-        self.__local_event = Event()
-        self.__local_event.set()
+        self.__heartbeat_interval = 0
 
         self.__session_id = None
         self.__resume_url = None
@@ -43,24 +40,8 @@ class DiscordGateway:
         self.__event.set()
 
     @property
-    def mutex(self):
-        return self.__mutex
-
-    @property
-    def event(self):
-        return self.__event
-
-    @property
     def last_message(self):
         return self.__last_message
-
-    @property
-    def s(self):
-        return self.__s
-
-    @property
-    def local_event(self):
-        return self.__local_event
 
     def register(self, arg, callback):
         self.__watchmen[arg] = callback
@@ -81,6 +62,7 @@ class DiscordGateway:
     def teardown(self):
         self.__event.clear()
         self.__state = 0
+        self.__s = None
         self.__event.set()
         self.start()
 
@@ -148,31 +130,43 @@ class DiscordGateway:
         self.__mutex.release()
         return True
 
-    def grab_heartbeat(self, ctx):
+    def __secsleep(self, seconds):
+        counter = 0
+        while self.__event.is_set() and counter < seconds:
+            sleep(1)
+            counter += 1
+
+        return counter == seconds
+
+    def set_heartbeat_interval(self, ctx):
+        # OP code 10
         if not (self.__state == 1 or self.__state == 5):
             print(f"{datetime.now()} State failure, cannot grab heartbeat, tearing down", flush=True)
             return False
 
-        interval = ctx["heartbeat_interval"]
+        self.__heartbeat_interval = ctx["heartbeat_interval"] // 1000
+        if not self.__secsleep(int(random() * self.__heartbeat_interval)):
+            return False
+        if not self.__secsleep(self.__heartbeat_interval):
+            return False
 
-        # kill any other active thread (when a clean reconnect occurs)
-        if self.__heartbeat_class is None:
-            self.__heartbeat_class = HeartbeatThread(interval, self)
+        self.send_message({
+                "op": 1,
+                "d": self.__s
+            })
 
-        if self.__heartbeat_thread is not None:
-            self.__local_event.clear()
-            self.__heartbeat_thread.join()
-            self.__local_event.set()
-            self.__heartbeat_class.ack_heartbeat(None)
+        return True
 
-        if self.__state == 1:
-            self.__state = 2
-        else:
-            self.__state = 4
+    def heartbeat_response(self, ctx):
+        # OP code 11
+        if not self.__secsleep(self.__heartbeat_interval):
+            return False
 
-        # we start sending heartbeats to the websocket
-        self.__heartbeat_thread = self.thread_with_teardown(self.__heartbeat_class.heartbeat)
-        self.register(11, self.__heartbeat_class.ack_heartbeat)
+        self.send_message({
+            "op": 1,
+            "d": self.__s
+        })
+
         return True
 
     def grab_session(self, ctx):
@@ -188,10 +182,13 @@ class DiscordGateway:
         return False
 
     def start(self):
-        # discord responds with OP code 10
-        self.register(10, self.grab_heartbeat)
+        # discord sends OP code 10 to indicate setting a new heartbeat interval
+        self.register(10, self.set_heartbeat_interval)
 
-        # discord responds with OP code 0 "Ready"
+        # discord responds with OP code 11 to indicate a heartbeat acknowledgement, this starts a new countdown
+        self.register(11, self.heartbeat_response)
+
+        # discord responds with OP code 0 "Ready" to indicate that events can be received
         self.register("READY", self.grab_session)
 
         self.register(9, self.opcode9)
@@ -228,41 +225,3 @@ class DiscordGateway:
             }
         })
         self.__state = 3
-
-
-class HeartbeatThread:
-
-    def __init__(self, interval: int, gateway: DiscordGateway):
-        self.__state = 1
-        self.__interval = (interval / 1000) - 1
-        self.__gateway = gateway
-
-        self.__progress = 0
-
-        sleep(random() * self.__interval)
-
-    def heartbeat(self, *args, **kwargs):
-
-        while self.__gateway.event.is_set() and self.__gateway.local_event.is_set():
-            if self.__state != 1:
-                # since this thread was called with the teardown function,
-                # we can just fuck off and let the system reconnect
-                self.__gateway.event.clear()
-                return False
-
-            self.__gateway.send_message({
-                "op": 1,
-                "d": self.__gateway.s
-            })
-            self.__state = 2
-            self.__progress = 0
-
-            while self.__gateway.local_event.is_set() and self.__progress < self.__interval:
-                sleep(1)
-                self.__progress += 1
-
-        return True
-
-    def ack_heartbeat(self, ctx):
-        self.__state = 1
-        return True
