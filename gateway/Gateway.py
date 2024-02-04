@@ -144,6 +144,8 @@ class DiscordGateway:
             print(f"{datetime.now()} State failure, cannot grab heartbeat, tearing down", flush=True)
             return False
 
+        self.__state = 2
+
         self.__heartbeat_interval = ctx["heartbeat_interval"] // 1000
         if not self.__secsleep(int(random() * self.__heartbeat_interval)):
             return False
