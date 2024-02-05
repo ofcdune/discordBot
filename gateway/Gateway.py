@@ -33,11 +33,12 @@ class DiscordGateway:
 
         self.__heartbeat_interval = 0
         self.__heartbeat_started = False
+        self.__authenticated = False
 
         self.__session_id = None
         self.__resume_url = None
 
-        self.__event.set()
+        self.__threads = []
 
     @property
     def last_message(self):
@@ -53,8 +54,7 @@ class DiscordGateway:
         def startwithtd(*arg, **kwarg):
             result = target(*arg, **kwarg)
 
-            # explicitly only teardown because of a False flag
-            if result == False:
+            if result is not None and not result:
                 # this neat feature allows me to specify certain teardown conditions
                 # instead of just tearing down the entire process at once
                 print(f"{datetime.now()} Tearing down processes due to function", target.__name__, flush=True)
@@ -62,6 +62,8 @@ class DiscordGateway:
 
         thread = Thread(target=startwithtd, args=args, kwargs=kwargs)
         thread.start()
+        self.__threads.append(thread)
+
         return thread
 
     def __teardown(self):
@@ -69,8 +71,6 @@ class DiscordGateway:
         self.__websocket.close()
         self.__heartbeat_started = False
         self.__s = None
-        self.__event.set()
-        self.start()
 
     def __wait_for_opcode(self, opcode):
         while self.__last_message["op"] != opcode:
@@ -109,7 +109,7 @@ class DiscordGateway:
                         self.__resume(None)
                     case _:
                         self.__event.clear()
-                        return
+                        return False
 
             callback = self.__watchmen.get(self.__last_message["op"])
             if callback is not None:
@@ -118,6 +118,8 @@ class DiscordGateway:
             callback = self.__watchmen.get(self.__last_message["t"])
             if callback is not None:
                 self.__thread_with_teardown(callback, self.__last_message['d'])
+
+        return False
 
     def __resume(self, ctx):
         message = {
@@ -147,15 +149,15 @@ class DiscordGateway:
         # OP code 10
 
         self.__heartbeat_interval = ctx["heartbeat_interval"] // 1000
-        if not self.__secsleep(int(random() * self.__heartbeat_interval)):
-            return False
-
-        self.__send_message({
-            "op": 1,
-            "d": self.__s
-        })
 
         if not self.__heartbeat_started:
+
+            self.__send_message({
+                "op": 1,
+                "d": self.__s
+            })
+            self.__heartbeat_started = True
+
             # we send the register message with the bot token and our initial presence
             self.__send_message({
                 "op": 2,
@@ -164,6 +166,9 @@ class DiscordGateway:
                     "presence": {
                         "activities": [{
                             "name": "to Version 2.0",
+                            "type": 2,
+                        }, {
+                            "name": "to Version 2.5",
                             "type": 2,
                         }],
                         "status": "online",
@@ -205,7 +210,13 @@ class DiscordGateway:
             return True
         return False
 
-    def start(self):
+    def run(self):
+        for t in self.__threads:
+            t.join()
+
+        self.__event.set()
+        self.__threads.clear()
+
         if self.__token is None:
             return
 
@@ -223,4 +234,6 @@ class DiscordGateway:
         print(f"{datetime.now()} Starting gateway handshake", flush=True)
 
         # establish a connection with the discord websocket
-        self.__thread_with_teardown(self.__receive_from_discord)
+        recv = self.__thread_with_teardown(self.__receive_from_discord)
+
+        recv.join()

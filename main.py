@@ -23,4 +23,5 @@ def message(ctx):
         bot.send_dm(ctx["author"]["id"], "It works")
 
 
-gw.start()
+while True:
+    gw.run()
