@@ -19,14 +19,14 @@ ssl_context.verify_mode = ssl.CERT_NONE
 
 class DiscordGateway:
 
-    def __init__(self, token: str, url: str, global_mutex: Mutex, global_event: Event):
-        self.__token = token
-        self.__url = url
+    def __init__(self):
+        self.__token = None
+        self.__url = "wss://gateway.discord.gg/?v=10&encoding=json"
 
         self.__websocket = None
-        self.__mutex = global_mutex
-        self.__event = global_event
-        self.__watchmen = {7: self.resume}
+        self.__mutex = Mutex()
+        self.__event = Event()
+        self.__watchmen = {7: self.__resume}
 
         self.__last_message = {"op": -1}
         self.__s = None
@@ -46,21 +46,27 @@ class DiscordGateway:
     def register(self, arg, callback):
         self.__watchmen[arg] = callback
 
-    def thread_with_teardown(self, target, *args, **kwargs):
+    def set_token(self, token: str):
+        self.__token = token
+
+    def __thread_with_teardown(self, target, *args, **kwargs):
         def startwithtd(*arg, **kwarg):
             result = target(*arg, **kwarg)
-            if not result:
+
+            # explicitly only teardown because of a False flag
+            if result == False:
                 # this neat feature allows me to specify certain teardown conditions
                 # instead of just tearing down the entire process at once
                 print(f"{datetime.now()} Tearing down processes due to function", target.__name__, flush=True)
-                self.teardown()
+                self.__teardown()
 
         thread = Thread(target=startwithtd, args=args, kwargs=kwargs)
         thread.start()
         return thread
 
-    def teardown(self):
+    def __teardown(self):
         self.__event.clear()
+        self.__websocket.close()
         self.__heartbeat_started = False
         self.__s = None
         self.__event.set()
@@ -70,7 +76,7 @@ class DiscordGateway:
         while self.__last_message["op"] != opcode:
             sleep(.1)
 
-    def send_message(self, message: dict):
+    def __send_message(self, message: dict):
         if not isinstance(message, dict):
             return
 
@@ -100,20 +106,20 @@ class DiscordGateway:
                 print(datetime.now(), e, flush=True)
                 match e.code:
                     case 4000 | 4001 | 4002 | 4003 | 4004 | 4005 | 4007 | 4008:
-                        self.resume(None)
+                        self.__resume(None)
                     case _:
                         self.__event.clear()
                         return
 
             callback = self.__watchmen.get(self.__last_message["op"])
             if callback is not None:
-                self.thread_with_teardown(callback, self.__last_message['d'])
+                self.__thread_with_teardown(callback, self.__last_message['d'])
 
             callback = self.__watchmen.get(self.__last_message["t"])
             if callback is not None:
-                self.thread_with_teardown(callback, self.__last_message['d'])
+                self.__thread_with_teardown(callback, self.__last_message['d'])
 
-    def resume(self, ctx):
+    def __resume(self, ctx):
         message = {
                 "op": 6,
                 'd': {
@@ -125,7 +131,7 @@ class DiscordGateway:
 
         self.__mutex.acquire()
         self.__websocket = connect(self.__resume_url, ssl_context=ssl_context)
-        self.send_message(message)
+        self.__send_message(message)
         self.__mutex.release()
         return True
 
@@ -137,21 +143,21 @@ class DiscordGateway:
 
         return counter == seconds
 
-    def set_heartbeat_interval(self, ctx):
+    def __set_heartbeat_interval(self, ctx):
         # OP code 10
 
         self.__heartbeat_interval = ctx["heartbeat_interval"] // 1000
         if not self.__secsleep(int(random() * self.__heartbeat_interval)):
             return False
 
-        self.send_message({
-                "op": 1,
-                "d": self.__s
-            })
+        self.__send_message({
+            "op": 1,
+            "d": self.__s
+        })
 
         if not self.__heartbeat_started:
             # we send the register message with the bot token and our initial presence
-            self.send_message({
+            self.__send_message({
                 "op": 2,
                 'd': {
                     "token": self.__token,
@@ -176,42 +182,45 @@ class DiscordGateway:
 
         return True
 
-    def heartbeat_response(self, ctx):
+    def __heartbeat_response(self, ctx):
         # OP code 11
         if not self.__secsleep(self.__heartbeat_interval):
             return False
 
-        self.send_message({
+        self.__send_message({
             "op": 1,
             "d": self.__s
         })
 
         return True
 
-    def grab_session(self, ctx):
+    def __grab_session(self, ctx):
         self.__session_id = ctx["session_id"]
         self.__resume_url = ctx["resume_gateway_url"]
         return True
 
-    def opcode9(self, ctx):
+    def __opcode9(self, ctx):
         if ctx:
-            self.resume(ctx)
+            self.__resume(ctx)
             return True
         return False
 
     def start(self):
+        if self.__token is None:
+            return
+
         # discord sends OP code 10 to indicate setting a new heartbeat interval
-        self.register(10, self.set_heartbeat_interval)
+        self.register(10, self.__set_heartbeat_interval)
 
         # discord responds with OP code 11 to indicate a heartbeat acknowledgement, this starts a new countdown
-        self.register(11, self.heartbeat_response)
+        self.register(11, self.__heartbeat_response)
 
         # discord responds with OP code 0 "Ready" to indicate that events can be received
-        self.register("READY", self.grab_session)
+        self.register("READY", self.__grab_session)
 
-        self.register(9, self.opcode9)
+        self.register(9, self.__opcode9)
 
         print(f"{datetime.now()} Starting gateway handshake", flush=True)
 
         # establish a connection with the discord websocket
-        self.thread_with_teardown(self.__receive_from_discord)
+        self.__thread_with_teardown(self.__receive_from_discord)

@@ -1,39 +1,26 @@
 from json import loads
 from api.Bot import Bot
 from gateway.Gateway import DiscordGateway
-from threading import Condition, Event
 from api.EventHook import *
 
 
 config = loads(open("config.json", "r").read())
 bot = Bot(config["token"])
 
-mutex = Condition()
-event = Event()
-
-gw = DiscordGateway(config["token"], "wss://gateway.discord.gg/?v=10&encoding=json", mutex, event)
+gw = DiscordGateway()
+gw.set_token(config["token"])
 
 
-# @on_message(gw)
-def message(ctx) -> bool:
+@on_message(gw)
+def message(ctx):
     content = ctx["content"]
     if not content.startswith('!'):
-        return True
+        return
+
     command = content[1:]
 
     if command == "uptime":
         bot.send_dm(ctx["author"]["id"], "It works")
-
-    return True
-
-
-"""
-@on_reaction(gw)
-def reaction(ctx):
-    bot.send_dm(ctx["user_id"], "You reacted to a message :smirk:")
-"""
-
-gw.register("MESSAGE_CREATE", message)
 
 
 gw.start()
