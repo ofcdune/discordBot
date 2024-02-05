@@ -27,12 +27,12 @@ class DiscordGateway:
         self.__mutex = global_mutex
         self.__event = global_event
         self.__watchmen = {7: self.resume}
-        self.__state = 0
 
         self.__last_message = {"op": -1}
         self.__s = None
 
         self.__heartbeat_interval = 0
+        self.__heartbeat_started = False
 
         self.__session_id = None
         self.__resume_url = None
@@ -61,7 +61,7 @@ class DiscordGateway:
 
     def teardown(self):
         self.__event.clear()
-        self.__state = 0
+        self.__heartbeat_started = False
         self.__s = None
         self.__event.set()
         self.start()
@@ -114,7 +114,6 @@ class DiscordGateway:
                 self.thread_with_teardown(callback, self.__last_message['d'])
 
     def resume(self, ctx):
-        self.__state = 5
         message = {
                 "op": 6,
                 'd': {
@@ -140,9 +139,6 @@ class DiscordGateway:
 
     def set_heartbeat_interval(self, ctx):
         # OP code 10
-        if not (self.__state == 1 or self.__state == 5):
-            print(f"{datetime.now()} State failure, cannot grab heartbeat, tearing down", flush=True)
-            return False
 
         self.__heartbeat_interval = ctx["heartbeat_interval"] // 1000
         if not self.__secsleep(int(random() * self.__heartbeat_interval)):
@@ -153,7 +149,30 @@ class DiscordGateway:
                 "d": self.__s
             })
 
-        self.__state = 2
+        if not self.__heartbeat_started:
+            # we send the register message with the bot token and our initial presence
+            self.send_message({
+                "op": 2,
+                'd': {
+                    "token": self.__token,
+                    "presence": {
+                        "activities": [{
+                            "name": "to Version 2.0",
+                            "type": 2,
+                        }],
+                        "status": "online",
+                        "since": None,
+                        "afk": False
+                    },
+                    "properties": {
+                        "os": "linux",
+                        "browser": "Cleisthenes of Athens",
+                        "device": "Cleisthenes of Athens"
+                    },
+                    "intents": 34306
+                }
+            })
+            self.__heartbeat_started = True
 
         return True
 
@@ -170,7 +189,6 @@ class DiscordGateway:
         return True
 
     def grab_session(self, ctx):
-        self.__state = 4
         self.__session_id = ctx["session_id"]
         self.__resume_url = ctx["resume_gateway_url"]
         return True
@@ -196,32 +214,4 @@ class DiscordGateway:
         print(f"{datetime.now()} Starting gateway handshake", flush=True)
 
         # establish a connection with the discord websocket
-        self.__state = 1
         self.thread_with_teardown(self.__receive_from_discord)
-
-        while self.__state != 2:
-            sleep(.1)
-
-        # we send the register message with the bot token and our initial presence
-        self.send_message({
-            "op": 2,
-            'd': {
-                "token": self.__token,
-                "presence": {
-                    "activities": [{
-                        "name": "to Version 2.0",
-                        "type": 2,
-                    }],
-                    "status": "online",
-                    "since": None,
-                    "afk": False
-                },
-                "properties": {
-                    "os": "linux",
-                    "browser": "Cleisthenes of Athens",
-                    "device": "Cleisthenes of Athens"
-                },
-                "intents": 34306
-            }
-        })
-        self.__state = 3
