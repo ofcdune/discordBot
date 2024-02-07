@@ -7,3 +7,4 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./:/usr/src/app
+    restart: unless-stopped
