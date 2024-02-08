@@ -1,11 +1,6 @@
 from requests import post, put, get, patch, delete
 from datetime import datetime
 
-DISCORD_PRESENCE_MSG = 15
-DISCORD_PRESENCE_GUILDMSG = 9
-DISCORD_PRESENCE_GUILD = 1
-DISCORD_GUILD_MESSAGE_REACTIONS = 10
-
 
 class Bot:
 
@@ -26,14 +21,6 @@ class Bot:
         }
 
         self.__dm_channels = {}
-        self.__websocket_connection = None
-
-    @staticmethod
-    def get_intents(*shifts: int):
-        nbr = 0
-        for shift in shifts:
-            nbr |= (1 << shift)
-        return nbr
 
     @property
     def token(self):
@@ -46,49 +33,6 @@ class Bot:
     @property
     def uptime(self):
         return self.__uptime
-
-    def set_connection(self, new_connection):
-        self.__websocket_connection = new_connection
-
-    def set_presence(self, presence):
-        self.__presence = presence
-
-    def update_presence(self, new_presence: dict, activity_type=0):
-        self.set_presence(new_presence)
-        self.__websocket_connection.send({
-            "op": 3,
-            "d": {
-                "token": self.token,
-                "activities": [{
-                    "name": f"{new_presence}",
-                    "type": int(activity_type),
-                }],
-                "status": "online",
-                "since": None,
-                "afk": False
-            }
-        })
-
-    def identify(self):
-
-        obj = {
-            "op": 2,
-            'd': {
-                "token": self.__token,
-                "properties": {
-                    "os": "linux",
-                    "browser": "Cleisthenes of Athens",
-                    "device": "Cleisthenes of Athens"
-                },
-                "intents": self.get_intents(DISCORD_PRESENCE_MSG, DISCORD_PRESENCE_GUILDMSG,
-                                            DISCORD_PRESENCE_GUILD, DISCORD_GUILD_MESSAGE_REACTIONS)
-            }
-        }
-
-        if self.__presence:
-            obj['d']["presence"] = self.__presence
-
-        return obj
 
     def get_url(self, url: str):
         return self.__base_url + url
@@ -112,9 +56,6 @@ class Bot:
     def delete(self, url: str):
         url = self.get_url(url)
         return delete(url, headers=self.__post_header)
-
-    def send_websocket(self, obj: dict):
-        self.__websocket_connection.send(obj)
 
     def get_message(self, channel_id: str, message_id: str):
         content = self.get(f"/channels/{channel_id}/messages/{message_id}")
