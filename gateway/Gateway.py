@@ -26,6 +26,7 @@ class DiscordGateway:
         self.__websocket = None
         self.__mutex = Mutex()
         self.__event = Event()
+        self.__heartbeat_event = Event()
         self.__watchmen = {7: self.__resume}
 
         self.__last_message = {"op": -1}
@@ -33,7 +34,6 @@ class DiscordGateway:
 
         self.__heartbeat_interval = 0
         self.__heartbeat_started = False
-        self.__authenticated = False
 
         self.__session_id = None
         self.__resume_url = None
@@ -71,10 +71,6 @@ class DiscordGateway:
         self.__websocket.close()
         self.__heartbeat_started = False
         self.__s = None
-
-    def __wait_for_opcode(self, opcode):
-        while self.__last_message["op"] != opcode:
-            sleep(.1)
 
     def __send_message(self, message: dict):
         if not isinstance(message, dict):
@@ -139,7 +135,7 @@ class DiscordGateway:
 
     def __secsleep(self, seconds):
         counter = 0
-        while self.__event.is_set() and counter < seconds:
+        while self.__event.is_set() and self.__heartbeat_event.is_set() and counter < seconds:
             sleep(1)
             counter += 1
 
@@ -185,12 +181,24 @@ class DiscordGateway:
             })
             self.__heartbeat_started = True
 
+        if self.__heartbeat_started:
+            # directly send a message to the gateway in order to avoid having to reconnect too often
+
+            self.__heartbeat_event.clear()
+            sleep(1)
+            self.__heartbeat_event.set()
+
+            self.__send_message({
+                "op": 1,
+                "d": self.__s
+            })
+
         return True
 
     def __heartbeat_response(self, ctx):
         # OP code 11
         if not self.__secsleep(self.__heartbeat_interval):
-            return False
+            return
 
         self.__send_message({
             "op": 1,
@@ -215,6 +223,7 @@ class DiscordGateway:
             t.join()
 
         self.__event.set()
+        self.__heartbeat_event.set()
         self.__threads.clear()
 
         if self.__token is None:
