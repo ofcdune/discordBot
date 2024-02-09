@@ -6,9 +6,9 @@ from websockets.sync.client import connect
 
 from threading import Thread, Condition as Mutex, Event
 from json import loads, dumps
+from os.path import exists
 
 import ssl
-
 
 # todo: please remove in production
 ssl_context = ssl.create_default_context()
@@ -120,13 +120,13 @@ class DiscordGateway:
 
     def __resume(self, ctx):
         message = {
-                "op": 6,
-                'd': {
-                    "token": self.__token,
-                    "session_id": self.__session_id,
-                    "seq": self.__s
-                }
+            "op": 6,
+            'd': {
+                "token": self.__token,
+                "session_id": self.__session_id,
+                "seq": self.__s
             }
+        }
 
         self.__mutex.acquire()
         self.__websocket = connect(self.__resume_url, ssl_context=ssl_context)
@@ -155,26 +155,35 @@ class DiscordGateway:
             })
 
             # we send the register message with the bot token and our initial presence
+
+            activities = []
+            if exists(r"assets/status.txt"):
+                content = open("assets/status.txt", 'r').read().split('\n')
+                for line in content:
+                    activities.append({
+                        "name": line,
+                        "type": 2
+                    })
+            else:
+                activities.append({
+                        "name": "Version 2.0",
+                        "type": 2,
+                    })
+
             self.send_message({
                 "op": 2,
                 'd': {
                     "token": self.__token,
                     "presence": {
-                        "activities": [{
-                            "name": "to Version 2.0",
-                            "type": 2,
-                        }, {
-                            "name": "to Version 2.5",
-                            "type": 2,
-                        }],
-                        "status": "online",
+                        "activities": activities,
+                        "status": "afk",
                         "since": None,
-                        "afk": False
+                        "afk": True
                     },
                     "properties": {
                         "os": "linux",
-                        "browser": "Cleisthenes of Athens",
-                        "device": "Cleisthenes of Athens"
+                        "browser": "Chrome",
+                        "device": "Phone"
                     },
                     "intents": 34306
                 }
