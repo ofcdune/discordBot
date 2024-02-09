@@ -1,4 +1,3 @@
-from random import random
 from time import sleep
 from datetime import datetime
 
@@ -26,7 +25,6 @@ class DiscordGateway:
         self.__websocket = None
         self.__mutex = Mutex()
         self.__event = Event()
-        self.__heartbeat_event = Event()
         self.__watchmen = {7: self.__resume}
 
         self.__last_message = {"op": -1}
@@ -135,7 +133,7 @@ class DiscordGateway:
 
     def __secsleep(self, seconds):
         counter = 0
-        while self.__event.is_set() and self.__heartbeat_event.is_set() and counter < seconds:
+        while self.__event.is_set() and counter < seconds:
             sleep(1)
             counter += 1
 
@@ -181,18 +179,6 @@ class DiscordGateway:
             })
             self.__heartbeat_started = True
 
-        if self.__heartbeat_started:
-            # directly send a message to the gateway in order to avoid having to reconnect too often
-
-            self.__heartbeat_event.clear()
-            sleep(1)
-            self.__heartbeat_event.set()
-
-            self.__send_message({
-                "op": 1,
-                "d": self.__s
-            })
-
         return True
 
     def __heartbeat_response(self, ctx):
@@ -223,7 +209,6 @@ class DiscordGateway:
             t.join()
 
         self.__event.set()
-        self.__heartbeat_event.set()
         self.__threads.clear()
 
         if self.__token is None:
