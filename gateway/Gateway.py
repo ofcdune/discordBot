@@ -25,7 +25,7 @@ class DiscordGateway:
         self.__websocket = None
         self.__mutex = Mutex()
         self.__event = Event()
-        self.__watchmen = {7: self.__resume}
+        self.__watchmen = {7: [self.__resume]}
 
         self.__last_message = {"op": -1}
         self.__s = None
@@ -43,7 +43,10 @@ class DiscordGateway:
         return self.__last_message
 
     def register(self, arg, callback):
-        self.__watchmen[arg] = callback
+        if self.__watchmen.get(arg) is None:
+            self.__watchmen[arg] = [callback]
+        else:
+            self.__watchmen[arg].append(callback)
 
     def set_token(self, token: str):
         self.__token = token
@@ -70,7 +73,7 @@ class DiscordGateway:
         self.__heartbeat_started = False
         self.__s = None
 
-    def __send_message(self, message: dict):
+    def send_message(self, message: dict):
         if not isinstance(message, dict):
             return
 
@@ -105,12 +108,12 @@ class DiscordGateway:
                         self.__event.clear()
                         return False
 
-            callback = self.__watchmen.get(self.__last_message["op"])
-            if callback is not None:
+            callbacks = self.__watchmen.get(self.__last_message["op"], [])
+            for callback in callbacks:
                 self.__thread_with_teardown(callback, self.__last_message['d'])
 
-            callback = self.__watchmen.get(self.__last_message["t"])
-            if callback is not None:
+            callbacks = self.__watchmen.get(self.__last_message["t"], [])
+            for callback in callbacks:
                 self.__thread_with_teardown(callback, self.__last_message['d'])
 
         return False
@@ -127,7 +130,7 @@ class DiscordGateway:
 
         self.__mutex.acquire()
         self.__websocket = connect(self.__resume_url, ssl_context=ssl_context)
-        self.__send_message(message)
+        self.send_message(message)
         self.__mutex.release()
         return True
 
@@ -146,14 +149,13 @@ class DiscordGateway:
 
         if not self.__heartbeat_started:
 
-            self.__send_message({
+            self.send_message({
                 "op": 1,
                 "d": self.__s
             })
-            self.__heartbeat_started = True
 
             # we send the register message with the bot token and our initial presence
-            self.__send_message({
+            self.send_message({
                 "op": 2,
                 'd': {
                     "token": self.__token,
@@ -179,6 +181,12 @@ class DiscordGateway:
             })
             self.__heartbeat_started = True
 
+        else:
+            self.send_message({
+                "op": 1,
+                "d": self.__s
+            })
+
         return True
 
     def __heartbeat_response(self, ctx):
@@ -186,7 +194,7 @@ class DiscordGateway:
         if not self.__secsleep(self.__heartbeat_interval):
             return
 
-        self.__send_message({
+        self.send_message({
             "op": 1,
             "d": self.__s
         })

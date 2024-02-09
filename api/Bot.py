@@ -1,11 +1,16 @@
 from requests import post, put, get, patch, delete
 from datetime import datetime
+from gateway.Gateway import DiscordGateway
+
+from event.Command import commands
+from event.Message import messages
+from event.Reaction import reactions
 
 
 class Bot:
 
-    def __init__(self, token: str, presence: object = None):
-        self.__token = token
+    def __init__(self, presence: object = None):
+        self.__token = None
         self.__presence = presence
         self.__base_url = "https://discord.com/api/v10"
         self.owner = "718832291274817567"
@@ -16,15 +21,20 @@ class Bot:
             "authority": "discord.com",
             "accept": '/',
             "content-type": "application/json",
-            "Authorization": f"Bot {token}"
             # "Authorization": "NzE4ODMyMjkxMjc0ODE3NTY3.GuLb2H.Yar7BbL3M4mE0EPVUs8_yPDzAy4hRU2tqTuYLw"
         }
 
+        self.__gateway = DiscordGateway()
+
         self.__dm_channels = {}
 
-    @property
-    def token(self):
-        return self.__token
+        self.__gateway.register("MESSAGE_CREATE", commands.handle)
+        self.__gateway.register("MESSAGE_CREATE", messages.handle_message_create)
+        self.__gateway.register("MESSAGE_UPDATE", messages.handle_message_update)
+        self.__gateway.register("MESSAGE_DELETE", messages.handle_message_delete)
+
+        self.__gateway.register("MESSAGE_REACTION_ADD", reactions.handle_reaction_add)
+        self.__gateway.register("MESSAGE_REACTION_REMOVE", reactions.handle_reaction_remove)
 
     @property
     def presence(self):
@@ -33,6 +43,18 @@ class Bot:
     @property
     def uptime(self):
         return self.__uptime
+
+    def run_forever(self):
+        while True:
+            self.__gateway.run()
+
+    def set_token(self, token):
+        self.__post_header["Authorization"] = f"Bot {token}"
+        self.__gateway.set_token(token)
+
+    def set_presence(self, new_presence: dict):
+        self.__presence = new_presence
+        self.__gateway.send_message({"op": 3, 'd': new_presence})
 
     def get_url(self, url: str):
         return self.__base_url + url
