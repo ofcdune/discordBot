@@ -181,12 +181,6 @@ class DiscordGateway:
             })
             self.__heartbeat_started = True
 
-        else:
-            self.send_message({
-                "op": 1,
-                "d": self.__s
-            })
-
         return True
 
     def __heartbeat_response(self, ctx):
