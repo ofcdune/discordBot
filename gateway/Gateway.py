@@ -68,7 +68,6 @@ class DiscordGateway:
         return thread
 
     def __teardown(self):
-        self.__mutex.release()
         self.__websocket.close()
         self.__event.clear()
         self.__heartbeat_started = False
