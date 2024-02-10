@@ -9,7 +9,7 @@ bot.set_token(config["token"])
 
 @commands.command('!')
 def uptime(ctx):
-    bot.send_dm(ctx["author"]["id"], f"{ctx}")
+    bot.send_dm(ctx["author"]["id"], f"Online since {bot.uptime}")
 
 
 bot.run_forever()

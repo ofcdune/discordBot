@@ -68,8 +68,9 @@ class DiscordGateway:
         return thread
 
     def __teardown(self):
-        self.__event.clear()
+        self.__mutex.release()
         self.__websocket.close()
+        self.__event.clear()
         self.__heartbeat_started = False
         self.__s = None
 
@@ -119,18 +120,17 @@ class DiscordGateway:
         return False
 
     def __resume(self, ctx):
-        message = {
+        self.__mutex.acquire()
+        self.__websocket.close()
+        self.__websocket = connect(self.__resume_url, ssl_context=ssl_context)
+        self.send_message({
             "op": 6,
             'd': {
                 "token": self.__token,
                 "session_id": self.__session_id,
                 "seq": self.__s
             }
-        }
-
-        self.__mutex.acquire()
-        self.__websocket = connect(self.__resume_url, ssl_context=ssl_context)
-        self.send_message(message)
+        })
         self.__mutex.release()
         return True
 
@@ -154,8 +154,9 @@ class DiscordGateway:
                 "d": self.__s
             })
 
-            # we send the register message with the bot token and our initial presence
+            self.__heartbeat_started = True
 
+            # we send the register message with the bot token and our initial presence
             activities = []
             if exists(r"assets/status.txt"):
                 content = open("assets/status.txt", 'r').read().split('\n')
@@ -188,14 +189,14 @@ class DiscordGateway:
                     "intents": 34306
                 }
             })
-            self.__heartbeat_started = True
 
         return True
 
     def __heartbeat_response(self, ctx):
+
         # OP code 11
         if not self.__secsleep(self.__heartbeat_interval):
-            return
+            return False
 
         self.send_message({
             "op": 1,
@@ -212,8 +213,8 @@ class DiscordGateway:
     def __opcode9(self, ctx):
         if ctx:
             self.__resume(ctx)
-            return True
-        return False
+            return ctx
+        return ctx
 
     def run(self):
         for t in self.__threads:
