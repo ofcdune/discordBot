@@ -9,7 +9,7 @@ bot.set_token(config["token"])
 
 @commands.command('!')
 def uptime(ctx):
-    bot.send_dm(ctx["author"]["id"], "It works")
+    bot.send_dm(ctx["author"]["id"], f"{ctx}")
 
 
 bot.run_forever()
