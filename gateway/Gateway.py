@@ -156,17 +156,10 @@ class DiscordGateway:
         if not self.__heartbeat_started:
             self.__heartbeat_started = True
 
-            self.send_message({
-                "op": 1,
-                "d": self.__s
-            })
-        else:
-            self.__heartbeat_thread_active = True
-
-            self.send_message({
-                "op": 1,
-                "d": self.__s
-            })
+        self.send_message({
+            "op": 1,
+            "d": self.__s
+        })
 
         if not self.__logged_in:
             self.__logged_in = True
@@ -220,11 +213,11 @@ class DiscordGateway:
         if not self.__secsleep(self.__heartbeat_interval):
             return True
 
+        self.__heartbeat_thread_active = False
         self.send_message({
             "op": 1,
             "d": self.__s
         })
-        self.__heartbeat_thread_active = False
 
         return True
 
