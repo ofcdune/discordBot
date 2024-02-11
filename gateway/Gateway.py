@@ -25,7 +25,7 @@ class DiscordGateway:
         self.__websocket = None
         self.__mutex = Mutex()
         self.__event = Event()
-        self.__watchmen = {7: [self.__resume]}
+        self.__watchmen = {}
 
         self.__last_message = {"op": -1}
         self.__s = None
@@ -45,10 +45,7 @@ class DiscordGateway:
         return self.__last_message
 
     def register(self, arg, callback):
-        if self.__watchmen.get(arg) is None:
-            self.__watchmen[arg] = [callback]
-        else:
-            self.__watchmen[arg].append(callback)
+        self.__watchmen[arg] = callback
 
     def set_token(self, token: str):
         self.__token = token
@@ -57,7 +54,7 @@ class DiscordGateway:
         def startwithtd(*arg, **kwarg):
             result = target(*arg, **kwarg)
 
-            if result is not None and not result:
+            if result == False and self.__event.is_set():
                 # this neat feature allows me to specify certain teardown conditions
                 # instead of just tearing down the entire process at once
                 print(f"{datetime.now()} Tearing down processes due to function", target.__name__, flush=True)
@@ -85,9 +82,7 @@ class DiscordGateway:
 
         print(f"{datetime.now()} TX <<< {message}", flush=True)
 
-        self.__mutex.acquire()
         self.__websocket.send(dumps(message))
-        self.__mutex.release()
 
     def __receive_from_discord(self):
         self.__websocket = connect(self.__url, ssl_context=ssl_context)
@@ -116,13 +111,13 @@ class DiscordGateway:
                         self.__event.clear()
                         return False
 
-            callbacks = self.__watchmen.get(self.__last_message["op"], [])
-            for callback in callbacks:
-                self.__thread_with_teardown(callback, self.__last_message['d'])
+            callbacks = self.__watchmen.get(self.__last_message["op"], None)
+            if callbacks is not None:
+                self.__thread_with_teardown(callbacks, self.__last_message['d'])
 
-            callbacks = self.__watchmen.get(self.__last_message["t"], [])
-            for callback in callbacks:
-                self.__thread_with_teardown(callback, self.__last_message['d'])
+            callbacks = self.__watchmen.get(self.__last_message["t"], None)
+            if callbacks is not None:
+                self.__thread_with_teardown(callbacks, self.__last_message['d'])
 
         return False
 
@@ -151,7 +146,7 @@ class DiscordGateway:
     def __set_heartbeat_interval(self, ctx):
         # OP code 10
 
-        self.__heartbeat_interval = ctx["heartbeat_interval"] / 1000
+        self.__heartbeat_interval = ctx["heartbeat_interval"] // 1000
 
         if not self.__heartbeat_started:
             self.__heartbeat_started = True
@@ -175,9 +170,9 @@ class DiscordGateway:
                     })
             else:
                 activities.append({
-                        "name": "Version 2.0",
-                        "type": 2,
-                    })
+                    "name": "Version 2.0",
+                    "type": 2,
+                })
 
             self.send_message({
                 "op": 2,
@@ -241,6 +236,9 @@ class DiscordGateway:
 
         if self.__token is None:
             return
+
+        # discord sends OP code 7 to request an immediate resume
+        self.register(7, self.__resume)
 
         # discord sends OP code 10 to indicate setting a new heartbeat interval
         self.register(10, self.__set_heartbeat_interval)

@@ -28,7 +28,6 @@ class Bot:
 
         self.__dm_channels = {}
 
-        self.__gateway.register("MESSAGE_CREATE", commands.handle)
         self.__gateway.register("MESSAGE_CREATE", messages.handle_message_create)
         self.__gateway.register("MESSAGE_UPDATE", messages.handle_message_update)
         self.__gateway.register("MESSAGE_DELETE", messages.handle_message_delete)
