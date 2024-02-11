@@ -9,6 +9,13 @@ class CommandEvent(event.HandlerBase):
 
     def handle(self, ctx):
         content = ctx["content"].split(' ')
+
+        if len(content) == 0:
+            return
+
+        if len(content[0]) < 2:
+            return
+
         prefix = content[0][0]
         function_name = content[0][1:]
 

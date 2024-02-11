@@ -151,18 +151,26 @@ class DiscordGateway:
     def __set_heartbeat_interval(self, ctx):
         # OP code 10
 
-        self.__heartbeat_interval = ctx["heartbeat_interval"] // 1000
+        self.__heartbeat_interval = ctx["heartbeat_interval"] / 1000
 
         if not self.__heartbeat_started:
+            self.__heartbeat_started = True
+
+            self.send_message({
+                "op": 1,
+                "d": self.__s
+            })
+        else:
+            self.__heartbeat_thread_active = True
 
             self.send_message({
                 "op": 1,
                 "d": self.__s
             })
 
-            self.__heartbeat_started = True
-
         if not self.__logged_in:
+            self.__logged_in = True
+
             # we send the register message with the bot token and our initial presence
             activities = []
             if exists(r"assets/status.txt"):
@@ -195,15 +203,6 @@ class DiscordGateway:
                     },
                     "intents": 34306
                 }
-            })
-
-            self.__logged_in = True
-
-        if self.__heartbeat_started:
-            self.__heartbeat_thread_active = True
-            self.send_message({
-                "op": 1,
-                "d": self.__s
             })
 
         return True
