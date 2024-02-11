@@ -2,7 +2,6 @@ from requests import post, put, get, patch, delete
 from datetime import datetime
 from gateway.Gateway import DiscordGateway
 
-from event.Command import commands
 from event.Message import messages
 from event.Reaction import reactions
 
