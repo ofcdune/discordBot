@@ -32,6 +32,8 @@ class DiscordGateway:
 
         self.__heartbeat_interval = 0
         self.__heartbeat_started = False
+        self.__heartbeat_thread_active = False
+        self.__logged_in = False
 
         self.__session_id = None
         self.__resume_url = None
@@ -68,9 +70,13 @@ class DiscordGateway:
         return thread
 
     def __teardown(self):
-        self.__websocket.close()
         self.__event.clear()
+        self.__websocket.close()
+
         self.__heartbeat_started = False
+        self.__heartbeat_thread_active = False
+        self.__logged_in = False
+
         self.__s = None
 
     def send_message(self, message: dict):
@@ -79,7 +85,9 @@ class DiscordGateway:
 
         print(f"{datetime.now()} TX <<< {message}", flush=True)
 
+        self.__mutex.acquire()
         self.__websocket.send(dumps(message))
+        self.__mutex.release()
 
     def __receive_from_discord(self):
         self.__websocket = connect(self.__url, ssl_context=ssl_context)
@@ -120,7 +128,6 @@ class DiscordGateway:
 
     def __resume(self, ctx):
         self.__mutex.acquire()
-        self.__websocket.close()
         self.__websocket = connect(self.__resume_url, ssl_context=ssl_context)
         self.send_message({
             "op": 6,
@@ -155,6 +162,7 @@ class DiscordGateway:
 
             self.__heartbeat_started = True
 
+        if not self.__logged_in:
             # we send the register message with the bot token and our initial presence
             activities = []
             if exists(r"assets/status.txt"):
@@ -189,18 +197,35 @@ class DiscordGateway:
                 }
             })
 
+            self.__logged_in = True
+
+        if self.__heartbeat_started:
+            self.__heartbeat_thread_active = True
+            self.send_message({
+                "op": 1,
+                "d": self.__s
+            })
+
         return True
 
     def __heartbeat_response(self, ctx):
 
+        if not self.__heartbeat_started:
+            return False
+
+        if self.__heartbeat_thread_active:
+            return True
+
+        self.__heartbeat_thread_active = True
         # OP code 11
         if not self.__secsleep(self.__heartbeat_interval):
-            return False
+            return True
 
         self.send_message({
             "op": 1,
             "d": self.__s
         })
+        self.__heartbeat_thread_active = False
 
         return True
 
