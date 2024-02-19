@@ -34,6 +34,9 @@ class Bot:
         self.__gateway.register("MESSAGE_REACTION_ADD", reactions.handle_reaction_add)
         self.__gateway.register("MESSAGE_REACTION_REMOVE", reactions.handle_reaction_remove)
 
+        self.__cached_url = "wss://gateway.discord.gg/?v=10&encoding=json"
+        self.__retries = 1000
+
     @property
     def presence(self):
         return self.__presence
@@ -43,9 +46,29 @@ class Bot:
         return self.__uptime
 
     def run_forever(self):
-        while not self.__gateway.unfixable:
-            self.__gateway.run()
-        print("Exiting completely")
+
+        resp = self.get("/gateway/bot")
+        if resp.status_code != 200:
+            print("Fatal network error")
+            return
+
+        resp = resp.json()
+        self.__cached_url = resp["url"]
+        self.__retries = resp["session_start_limit"]["remaining"]
+
+        while self.__retries:
+            self.__gateway.run(self.__cached_url)
+
+            resp = self.get("/gateway/bot")
+            if resp.status_code != 200:
+                print("Fatal network error")
+                return
+
+            resp = resp.json()
+            self.__cached_url = resp["url"]
+            self.__retries = resp["session_start_limit"]["remaining"]
+
+        print("Exceeded max retries for the day, quitting")
 
     def set_token(self, token):
         self.__post_header["Authorization"] = f"Bot {token}"
@@ -55,27 +78,27 @@ class Bot:
         self.__presence = new_presence
         self.__gateway.send_message({"op": 3, 'd': new_presence})
 
-    def get_url(self, url: str):
+    def __get_url(self, url: str):
         return self.__base_url + url
 
     def post(self, url: str, body: dict):
-        url = self.get_url(url)
+        url = self.__get_url(url)
         return post(url, headers=self.__post_header, json=body)
 
     def get(self, url: str):
-        url = self.get_url(url)
+        url = self.__get_url(url)
         return get(url, headers=self.__post_header)
 
     def put(self, url: str):
-        url = self.get_url(url)
+        url = self.__get_url(url)
         return put(url, headers=self.__post_header)
 
     def patch(self, url: str, body: dict):
-        url = self.get_url(url)
+        url = self.__get_url(url)
         return patch(url, headers=self.__post_header, json=body)
 
     def delete(self, url: str):
-        url = self.get_url(url)
+        url = self.__get_url(url)
         return delete(url, headers=self.__post_header)
 
     def get_message(self, channel_id: str, message_id: str):

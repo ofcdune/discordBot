@@ -20,7 +20,7 @@ class DiscordGateway:
 
     def __init__(self):
         self.__token = None
-        self.__url = "wss://gateway.discord.gg/?v=10&encoding=json"
+        self.__url = ""
 
         self.__websocket = None
         self.__mutex = Mutex()
@@ -105,9 +105,10 @@ class DiscordGateway:
                 if callbacks is not None:
                     self.__thread_with_teardown(callbacks, self.__last_message['d'])
 
-            except ConnectionClosedError:
+            except ConnectionClosedError as e:
                 self.__mutex.release()
-                self.__unfixable = True
+                print(datetime.now(), e, flush=True)
+                # self.__unfixable = True
                 return False
 
             except ConnectionClosedOK as e:
@@ -227,7 +228,10 @@ class DiscordGateway:
             return ctx
         return ctx
 
-    def run(self):
+    def run(self, url):
+
+        self.__url = url
+
         for t in self.__threads:
             t.join()
 
