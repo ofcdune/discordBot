@@ -37,12 +37,13 @@ class DiscordGateway:
 
         self.__session_id = None
         self.__resume_url = None
+        self.__unfixable = False
 
         self.__threads = []
 
     @property
-    def last_message(self):
-        return self.__last_message
+    def unfixable(self):
+        return self.__unfixable
 
     def register(self, arg, callback):
         self.__watchmen[arg] = callback
@@ -96,10 +97,18 @@ class DiscordGateway:
 
                 print(f"{datetime.now()} RX >>> {self.__last_message}", flush=True)
 
+                callbacks = self.__watchmen.get(self.__last_message["op"], None)
+                if callbacks is not None:
+                    self.__thread_with_teardown(callbacks, self.__last_message['d'])
+
+                callbacks = self.__watchmen.get(self.__last_message["t"], None)
+                if callbacks is not None:
+                    self.__thread_with_teardown(callbacks, self.__last_message['d'])
+
             except ConnectionClosedError:
                 self.__mutex.release()
-                self.__event.clear()
-                return True
+                self.__unfixable = True
+                return False
 
             except ConnectionClosedOK as e:
                 self.__mutex.release()
@@ -108,16 +117,7 @@ class DiscordGateway:
                     case 4000 | 4001 | 4002 | 4003 | 4004 | 4005 | 4007 | 4008:
                         self.__resume(None)
                     case _:
-                        self.__event.clear()
                         return False
-
-            callbacks = self.__watchmen.get(self.__last_message["op"], None)
-            if callbacks is not None:
-                self.__thread_with_teardown(callbacks, self.__last_message['d'])
-
-            callbacks = self.__watchmen.get(self.__last_message["t"], None)
-            if callbacks is not None:
-                self.__thread_with_teardown(callbacks, self.__last_message['d'])
 
         return False
 

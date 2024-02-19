@@ -43,8 +43,9 @@ class Bot:
         return self.__uptime
 
     def run_forever(self):
-        while True:
+        while not self.__gateway.unfixable:
             self.__gateway.run()
+        print("Exiting completely")
 
     def set_token(self, token):
         self.__post_header["Authorization"] = f"Bot {token}"
