@@ -12,10 +12,10 @@ bot.set_token(config["token"])
 @messages.command('!')
 def uptime(ctx):
     delta = datetime.now() - bot.uptime
-    conv = datetime(1970, 1, 1) + delta
+    conv = datetime(1970, 1, 1, 0, 0) + delta
 
-    bot.send_dm(ctx["author"]["id"], f"Online since {conv.month - 1} months, {conv.day - 1} days, {conv.hour} hours,"
-                                     f" {conv.minute} minutes and {conv.second} seconds")
+    bot.send_dm(ctx["author"]["id"], f"Online since {conv.month - 1} months, {conv.day - 1} days, "
+                                     f"{conv.hour} hours, {conv.minute} minutes and {conv.second} seconds")
 
 
 bot.run_forever()
