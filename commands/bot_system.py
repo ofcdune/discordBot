@@ -1,4 +1,4 @@
-from api.Bot import messages
+from gateway.Bot import messages
 
 
 @messages.command('!')

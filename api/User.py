@@ -1,32 +1,29 @@
+from api.BaseDiscordObject import BaseDiscordObject
 from api.Snowflake import Snowflake
 
 
-class User:
+class User(BaseDiscordObject):
 
     def __init__(self):
-        self.__id = None
-        self.__username = None
-        self.__discriminator = None
-        self.__global_name = None
-        self.__avatar = None
-        self.__bot = False
-        self.__system = False
-        self.__mfa_enabled = False
-        self.__banner = None
-        self.__accent_color = None
-        self.__locale = None
-        self.__verified = False
-        self.__email = None
-        self.__flags = None
-        self.__premium_type = None
-        self.__public_flags = None
-        self.__avatar_decoration = None
+        super().__init__()
+        
+        self.id = None
+        self.username = None
+        self.discriminator = None
+        self.global_name = None
+        self.avatar = None
+        self.bot = None
+        self.system = None
+        self.mfa_enabled = None
+        self.banner = None
+        self.accent_color = None
+        self.locale = None
+        self.verified = None
+        self.email = None
+        self.flags = None
+        self.premium_type = None
+        self.public_flags = None
+        self.avatar_decoration = None
 
-    def __from_json(self, user_dict: dict):
-        if not isinstance(user_dict, dict):
-            raise TypeError(
-                f"Expected <dict>, got {type(user_dict)}"
-            )
-
-        self.__id = Snowflake(user_dict["id"])
-        # todo: MORE
+    def _post_process(self):
+        self.id = Snowflake(self.id)

@@ -1,5 +1,5 @@
 from json import loads
-from api.Bot import Bot, messages, reactions
+from gateway.Bot import Bot, messages
 
 from datetime import datetime
 

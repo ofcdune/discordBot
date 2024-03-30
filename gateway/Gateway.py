@@ -8,6 +8,8 @@ from threading import Thread, Condition as Mutex, Event
 from json import loads, dumps
 from os.path import exists
 
+from gateway import Bot
+
 import ssl
 
 # todo: please remove in production
@@ -21,11 +23,13 @@ class DiscordGateway:
     def __init__(self):
         self.__token = None
         self.__url = ""
+        self.__bot = None
 
         self.__websocket = None
         self.__mutex = Mutex()
         self.__event = Event()
         self.__watchmen = {}
+        self.__bot = None
 
         self.__last_message = {"op": -1}
         self.__s = None
@@ -50,6 +54,9 @@ class DiscordGateway:
 
     def set_token(self, token: str):
         self.__token = token
+
+    def set_bot(self, bot: Bot):
+        self.__bot = bot
 
     def __thread_with_teardown(self, target, *args, **kwargs):
         def startwithtd(*arg, **kwarg):
@@ -81,8 +88,6 @@ class DiscordGateway:
         if not isinstance(message, dict):
             return
 
-        print(f"{datetime.now()} TX <<< {message}", flush=True)
-
         self.__websocket.send(dumps(message))
 
     def __receive_from_discord(self):
@@ -94,8 +99,6 @@ class DiscordGateway:
                 if self.__last_message['s'] is not None:
                     self.__s = self.__last_message['s']
                 self.__mutex.release()
-
-                print(f"{datetime.now()} RX >>> {self.__last_message}", flush=True)
 
                 callbacks = self.__watchmen.get(self.__last_message["op"], None)
                 if callbacks is not None:
@@ -228,7 +231,7 @@ class DiscordGateway:
             return ctx
         return ctx
 
-    def run(self, url):
+    def run(self, url, bot):
 
         self.__url = url
 

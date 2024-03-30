@@ -14,7 +14,7 @@ class Bot:
         self.__base_url = "https://discord.com/api/v10"
         self.owner = "718832291274817567"
         self.own_id = "1167130660205510716"
-        self.__uptime = datetime.utcnow()
+        self.__uptime = datetime.now()
 
         self.__post_header = {
             "authority": "discord.com",
@@ -57,7 +57,7 @@ class Bot:
         self.__retries = resp["session_start_limit"]["remaining"]
 
         while self.__retries:
-            self.__gateway.run(self.__cached_url)
+            self.__gateway.run(self.__cached_url, self)
 
             resp = self.get("/gateway/bot")
             if resp.status_code != 200:

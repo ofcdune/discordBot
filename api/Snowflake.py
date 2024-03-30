@@ -1,7 +1,15 @@
 class Snowflake:
 
     def __init__(self, value):
+        if value is None:
+            return
         self.__value = int(value)
+
+    def __str__(self):
+        return str(self.__value)
+
+    def __repr__(self):
+        return f"Snowflake({self.__value})"
 
     def unix_timestamp(self):
         return (self.__value >> 22) + 1420070400000

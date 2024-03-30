@@ -1,7 +1,7 @@
-from api.Bot import messages, reactions
+from gateway.Bot import messages, reactions
 
 
-# @messages.command('!')
+@messages.command('!')
 def vote(ctx):
 
     return
