@@ -2,6 +2,7 @@ class BaseDiscordObject:
 
     def __init__(self):
         self.__can_set_attributes = True
+        self.__bot = None
 
     def __setattr__(self, key, value):
         try:
@@ -17,10 +18,7 @@ class BaseDiscordObject:
         for i in obj:
             cls.__setattr__(bc, i, obj[i])
 
-        print("calling post process")
         bc._post_process()
-        print("done calling post process")
-
         bc.__can_set_attributes = False
 
         return bc

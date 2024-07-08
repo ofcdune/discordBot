@@ -10,6 +10,7 @@ class Message(BaseDiscordObject):
     def __init__(self):
         super().__init__()
 
+        self.bot = None
         self.id = None
         self.channel_id = None
         self.author = None
@@ -45,10 +46,10 @@ class Message(BaseDiscordObject):
 
     def _post_process(self):
         self.id = Snowflake(self.id)
-        self.channel_id = Snowflake(self.id)
+        self.channel_id = Snowflake(self.channel_id)
 
         self.author = User.from_json(self.author)
+        self.timestamp = datetime.strptime(self.timestamp, "%Y-%m-%dT%H:%M:%S.%f%z")
 
-        self.timestamp = datetime.timestamp(self.timestamp)
-        self.edited_timestamp = datetime.timestamp(self.edited_timestamp)
-
+        if self.edited_timestamp is not None:
+            self.edited_timestamp = datetime.strptime(self.edited_timestamp, "%Y-%m-%dT%H:%M:%S.%f%z")

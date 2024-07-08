@@ -14,7 +14,7 @@ class Bot:
         self.__base_url = "https://discord.com/api/v10"
         self.owner = "718832291274817567"
         self.own_id = "1167130660205510716"
-        self.__uptime = datetime.now()
+        self.__uptime = datetime.utcnow()
 
         self.__post_header = {
             "authority": "discord.com",
@@ -24,6 +24,7 @@ class Bot:
         }
 
         self.__gateway = DiscordGateway()
+        self.__gateway.set_bot(self)
 
         self.__dm_channels = {}
 
@@ -81,13 +82,13 @@ class Bot:
     def __get_url(self, url: str):
         return self.__base_url + url
 
-    def post(self, url: str, body: dict):
-        url = self.__get_url(url)
-        return post(url, headers=self.__post_header, json=body)
-
     def get(self, url: str):
         url = self.__get_url(url)
         return get(url, headers=self.__post_header)
+
+    def post(self, url: str, body: dict):
+        url = self.__get_url(url)
+        return post(url, headers=self.__post_header, json=body)
 
     def put(self, url: str):
         url = self.__get_url(url)
@@ -109,7 +110,7 @@ class Bot:
             return {}
 
     def send_message(self, channel_id: str, content: str):
-        return self.post(f"/channels/{channel_id}/messages", {"content": content})
+        return self.post(f"/channels/{channel_id}/messages", {"content": str(content)})
 
     def edit_message(self, channel_id: str, message_id: str, new_message_obj: dict):
         if not isinstance(new_message_obj, dict):
@@ -125,10 +126,11 @@ class Bot:
         return self.delete(f"/channels/{channel_id}/messages/{message_id}")
 
     def create_dm(self, user_id: str):
-        channel_id_request = self.post("/users/@me/channels", {"recipient_id": user_id})
+        channel_id_request = self.post("/users/@me/channels", {"recipient_id": str(user_id)})
         self.__dm_channels[user_id] = channel_id_request
 
     def send_dm(self, user_id: str, content: str):
+
         if self.__dm_channels.get(user_id) is None:
             self.create_dm(user_id)
 

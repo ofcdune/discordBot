@@ -1,4 +1,9 @@
 import event
+from api.Message import Message
+
+
+def message_preprocessor(ctx):
+    return Message.from_json(ctx.d | {"bot": ctx.bot})
 
 
 class MessageEvent(event.HandlerBase):
@@ -11,16 +16,18 @@ class MessageEvent(event.HandlerBase):
         self.__message_delete_cb = []
 
     def handle_message_create(self, ctx):
-        content = ctx["content"].split(' ')
+
+        message = message_preprocessor(ctx)
+        content = message.content.split(' ')
 
         if len(content) == 0:
             for callback in self.__message_create_cb:
-                callback(ctx)
+                callback(message)
             return
 
         if len(content[0]) < 2:
             for callback in self.__message_create_cb:
-                callback(ctx)
+                callback(message)
             return
 
         prefix = content[0][0]
@@ -28,13 +35,14 @@ class MessageEvent(event.HandlerBase):
 
         callback = self.__command_cb.get(function_name)
         if callback is None:
+            # there is no command registered with the specified function name
             for callback in self.__message_create_cb:
-                callback(ctx)
+                callback(message)
             return
 
         if callback["prefix"] != prefix:
             for callback in self.__message_create_cb:
-                callback(ctx)
+                callback(message)
             return
 
         # todo: check the owner
@@ -42,17 +50,20 @@ class MessageEvent(event.HandlerBase):
         # todo: now that we added a layer of abstraction, we could also add custom arguments
 
         try:
-            return callback["function"](ctx)
+            return callback["function"](message)
         except Exception as e:
+            print(">>> ", e)
             return False
 
     def handle_message_update(self, ctx):
+        message = message_preprocessor(ctx)
         for callback in self.__message_update_cb:
-            callback(ctx)
+            callback(message)
 
     def handle_message_delete(self, ctx):
+        message = message_preprocessor(ctx)
         for callback in self.__message_delete_cb:
-            callback(ctx)
+            callback(message)
 
     def command(self, prefix: str, owner: bool = False):
         def decorator(func):

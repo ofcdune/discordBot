@@ -9,6 +9,7 @@ from json import loads, dumps
 from os.path import exists
 
 from gateway import Bot
+from gateway.Context import Context
 
 import ssl
 
@@ -102,11 +103,11 @@ class DiscordGateway:
 
                 callbacks = self.__watchmen.get(self.__last_message["op"], None)
                 if callbacks is not None:
-                    self.__thread_with_teardown(callbacks, self.__last_message['d'])
+                    self.__thread_with_teardown(callbacks, Context(self.__bot, self.__last_message['d']))
 
                 callbacks = self.__watchmen.get(self.__last_message["t"], None)
                 if callbacks is not None:
-                    self.__thread_with_teardown(callbacks, self.__last_message['d'])
+                    self.__thread_with_teardown(callbacks, Context(self.__bot, self.__last_message['d']))
 
             except ConnectionClosedError as e:
                 self.__mutex.release()

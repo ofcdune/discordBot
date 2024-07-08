@@ -6,7 +6,8 @@ class User(BaseDiscordObject):
 
     def __init__(self):
         super().__init__()
-        
+
+        self.bot = None
         self.id = None
         self.username = None
         self.discriminator = None
